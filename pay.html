@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>namamu Payment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.5s ease-out',
+                        'cart-bounce': 'cartBounce 1.5s infinite',
+                        'cart-move': 'cartMove 3s infinite linear',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        },
+                        cartBounce: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        cartMove: {
+                            '0%': { left: '-100px' },
+                            '100%': { left: 'calc(100% + 100px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Loading Screen Styles */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+        }
+        
+        .loading-container {
+            width: 80%;
+            max-width: 500px;
+            text-align: center;
+            padding: 2rem;
+            background-color: rgba(30, 41, 59, 0.8);
+            border-radius: 1rem;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .track {
+            width: 100%;
+            height: 10px;
+            background-color: #334155;
+            border-radius: 5px;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #3b82f6;
+            border-radius: 5px;
+            transition: width 0.3s ease;
+        }
+        
+        .cart {
+            position: absolute;
+            bottom: 15px;
+            left: -50px;
+            font-size: 2rem;
+            color: #3b82f6;
+            animation: cartMove 3s infinite linear, cartBounce 1.5s infinite;
+        }
+
+        /* Notification Style */
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1f2937;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: none;
+            animation: slideUp 0.5s ease-out, fadeIn 0.5s ease-out;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background-color: #1f2937;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 0.5rem;
+            max-width: 500px;
+            text-align: center;
+            animation: modalFadeIn 0.5s ease-out;
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .close-modal {
+            color: #9ca3af;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-modal:hover {
+            color: #fff;
+        }
+        
+        /* Payment Section Style */
+        .payment-container {
+            margin-top: 3rem;
+        }
+        .payment-section {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto 1rem;
+        }
+        .payment-button {
+            transition: all 0.3s ease;
+        }
+        .payment-button:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-mono">
+    <!-- Loading Screen with Cart Animation -->
+    <div id="loading-screen">
+        <div class="loading-container">
+            <h2 class="text-2xl md:text-3xl font-bold text-primary mb-6">Initializing Payment System</h2>
+            
+            <div class="track">
+                <div class="progress-bar" id="progress-bar"></div>
+                <div class="cart">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+            </div>
+            
+            <p class="text-gray-400 mb-6">Processing Your Payment Gateway...</p>
+            
+            <button id="start-btn" class="hidden px-8 py-3 bg-primary text-white font-bold rounded-lg hover:bg-blue-400 transition-all duration-300 transform hover:scale-105">
+                <i class="fas fa-lock-open mr-2"></i>Start Payment Gateway
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification">
+        <span id="notification-text"></span>
+    </div>
+
+    <!-- QRIS Modal -->
+    <div id="qris-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <h2 class="text-xl font-bold text-primary mb-4">Scan QRIS</h2>
+            <img src="https://files.catbox.moe/bx6bx7.jpg" alt="QRIS Code" class="mx-auto mb-4 rounded-lg">
+            <p class="text-gray-400">Screenshot Qris Ini Dan Transfer Sesuai Nominal,Dan Jangan Lupa Screenshot Bukti Transfer Yaaa •~•</p>
+        </div>
+    </div>
+
+    <!-- Main Content (Initially hidden) -->
+    <div id="content" class="container mx-auto px-4 py-8 hidden">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <div class="inline-block p-4 rounded-lg bg-gray-800 bg-opacity-70 backdrop-blur-sm">
+                <h1 class="text-4xl font-bold text-primary mb-2">Zizz-Shop<span class="text-white">Pay</span></h1>
+                <p class="text-gray-400">Digital Payment Namamu Solution</p>
+            </div>
+        </header>
+
+        <!-- Payment Sections -->
+        <div class="payment-container max-w-lg mx-auto space-y-6">
+            <!-- E-Wallet Section -->
+            <div class="payment-section">
+                <button onclick="toggleSection('ewallet')" class="w-full py-4 px-6 bg-gray-800 hover:bg-gray-700 rounded-lg flex justify-between items-center payment-button">
+                    <span class="text-lg"><i class="fas fa-wallet mr-2 text-primary"></i>E-Wallet</span>
+                    <i class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
+                </button>
+                <div id="ewallet-content" class="hidden mt-2 space-y-3 pl-4">
+                    <button onclick="copyToClipboard('6282310906429', 'Dana')" class="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-between payment-button">
+                        <span class="text-md">Dana</span>
+                        <i class="far fa-copy"></i>
+                    </button>
+                    <button onclick="copyToClipboard('6282310906429', 'Gopay')" class="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-between payment-button">
+                        <span class="text-md">GOPAY</span>
+                        <i class="far fa-copy"></i>
+                    </button>
+                    <button onclick="openQRIS()" class="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-between payment-button">
+                        <span class="text-md">QRIS</span>
+                        <i class="fas fa-qrcode"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Donate Section -->
+            <div class="payment-section">
+                <button onclick="toggleSection('donate')" class="w-full py-4 px-6 bg-gray-800 hover:bg-gray-700 rounded-lg flex justify-between items-center payment-button">
+                    <span class="text-lg"><i class="fas fa-hand-holding-usd mr-2 text-primary"></i>Donate</span>
+                    <i class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
+                </button>
+                <div id="donate-content" class="hidden mt-2 space-y-3 pl-4">
+                    <button onclick="openQRIS()" class="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-between payment-button">
+                        <span class="text-md">Donation</span>
+                        <i class="fas fa-qrcode"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Section -->
+        <div class="mt-16 text-center">
+            <h3 class="text-xl mb-4 text-primary"><i class="fas fa-headset mr-2"></i>Contact Me</h3>
+            <div class="flex justify-center space-x-4">
+                <button onclick="window.open('https://wa.me/6282310906429', '_blank')" class="px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center payment-button">
+                    <i class="fab fa-whatsapp mr-2 text-primary"></i>WhatsApp
+                </button>
+                <button onclick="window.open('https://Wa.me/6282310906429', '_blank')" class="px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center payment-button">
+                    <i class="fab fa-whatsapp mr-2 text-primary"></i>WhatsApp-Bot
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-16 text-center text-gray-500 text-sm">
+            <p>© namamu | 2025</p>
+        </footer>
+    </div>
+
+    <script>
+        // Loading screen functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const progressBar = document.getElementById('progress-bar');
+            const startBtn = document.getElementById('start-btn');
+            const loadingScreen = document.getElementById('loading-screen');
+            const content = document.getElementById('content');
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 2;
+                progressBar.style.width = `${progress}%`;
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    startBtn.classList.remove('hidden');
+                }
+            }, 50);
+            
+            startBtn.addEventListener('click', function() {
+                this.classList.add('opacity-0');
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                    content.classList.remove('hidden');
+                }, 500);
+            });
+        });
+
+        // Notification function
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            
+            notificationText.textContent = message;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.animation = 'fadeIn 0.5s ease-out reverse';
+                setTimeout(() => {
+                    notification.style.display = 'none';
+                    notification.style.animation = 'slideUp 0.5s ease-out, fadeIn 0.5s ease-out';
+                }, 500);
+            }, 3000);
+        }
+
+        // Copy to clipboard with notification
+        function copyToClipboard(text, provider) {
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification(`Nomor ${provider} berhasil disalin: ${text}`);
+            }).catch(err => {
+                showNotification('Gagal menyalin: ' + err);
+            });
+        }
+
+        // Section toggle functionality
+        let currentlyOpenSection = null;
+        
+        function toggleSection(sectionId) {
+            const content = document.getElementById(`${sectionId}-content`);
+            const icon = document.querySelector(`#${sectionId}-content`).previousElementSibling.querySelector('.fa-chevron-down');
+            
+            // Close previously opened section
+            if (currentlyOpenSection && currentlyOpenSection !== sectionId) {
+                const prevContent = document.getElementById(`${currentlyOpenSection}-content`);
+                const prevIcon = document.querySelector(`#${currentlyOpenSection}-content`).previousElementSibling.querySelector('.fa-chevron-down');
+                prevContent.classList.add('hidden');
+                prevIcon.classList.remove('rotate-180');
+            }
+            
+            // Toggle current section
+            content.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
+            
+            // Update currently open section
+            currentlyOpenSection = content.classList.contains('hidden') ? null : sectionId;
+        }
+        
+        // QRIS modal functions
+        function openQRIS() {
+            document.getElementById('qris-modal').style.display = 'block';
+            if (currentlyOpenSection) {
+                const content = document.getElementById(`${currentlyOpenSection}-content`);
+                const icon = document.querySelector(`#${currentlyOpenSection}-content`).previousElementSibling.querySelector('.fa-chevron-down');
+                content.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+                currentlyOpenSection = null;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('qris-modal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('qris-modal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+
+<!-- Login Section -->
+<div id="login-section" class="hidden fixed inset-0 bg-gray-900 text-white flex items-center justify-center z-50">
+  <div class="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-lg">
+    <h1 class="animated-stroke text-center mb-6" data-text="namamu">namamu</h1>
+    <form class="space-y-4">
+      <div>
+        <label for="username" class="block text-sm">Username</label>
+        <input type="text" id="username" class="w-full px-4 py-2 rounded bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-primary">
+      </div>
+      <div>
+        <label for="password" class="block text-sm">Password</label>
+        <input type="password" id="password" class="w-full px-4 py-2 rounded bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-primary">
+      </div>
+      <button type="submit" class="w-full py-2 bg-blue-500 hover:bg-blue-600 rounded text-white font-bold transition duration-300">Login</button>
+    </form>
+  </div>
+</div>
+
+<!-- CSS Stroke Gradient -->
+<style>
+  .animated-stroke {
+    font-weight: bold;
+    font-size: 2.5rem;
+    color: transparent;
+    -webkit-text-stroke: 1px #3b82f6;
+    position: relative;
+  }
+
+  .animated-stroke::before {
+    content: attr(data-text);
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    color: #3b82f6;
+    overflow: hidden;
+    animation: shimmer 3s linear infinite;
+    white-space: nowrap;
+  }
+
+  @keyframes shimmer {
+    0% { width: 0; }
+    50% { width: 100%; }
+    100% { width: 0; }
+  }
+</style>
+
+<!-- Script to show login if hash is #login -->
+<script>
+  window.addEventListener("load", () => {
+    if (window.location.hash === "#login") {
+      document.getElementById("login-section").classList.remove("hidden");
+    }
+  });
+</script>
+
+</body>
+</html>
